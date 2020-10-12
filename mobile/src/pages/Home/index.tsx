@@ -1,25 +1,86 @@
-import React, { useState } from 'react';
+import React, { ChangeEvent, useEffect, useState } from 'react';
 import { Feather as Icon} from '@expo/vector-icons';
-import { View, ImageBackground, Text, Image, StyleSheet, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, ImageBackground, Text, Image, StyleSheet, KeyboardAvoidingView } from 'react-native';
 import { RectButton } from 'react-native-gesture-handler';
 import { useNavigation } from '@react-navigation/native';
+import RNPickerSelect from 'react-native-picker-select';
+import axios from 'axios';
+
+interface IBGEUFResponse{
+  nome: string;
+  sigla: string;
+}
+
+interface IBGECityResponse{
+  nome: string;
+}
+
+interface pickerType{
+  label: string;
+  value: any;
+}
 
 const Home = () => {
-  const [ uf, setUf ]= useState('');
-  const [ city, setCity ]= useState('');
+  const [ufs, setUfs] = useState<pickerType[]>([]);
+  const [cities, setCities] = useState<pickerType[]>([]);
+  const [selectedUF, setSelectedUF] = useState('0');
+  const [selectedCity, setSelectedCity] = useState('0');
 
   const navigation = useNavigation();
 
+  useEffect(() => {
+    axios.get<IBGEUFResponse[]>('http://servicodados.ibge.gov.br/api/v1/localidades/estados').then( response => {
+      const ufInitials = response.data.map(uf => {
+        return {
+          label: uf.nome,
+          value: uf.sigla
+        } 
+      });
+      
+      setUfs(ufInitials);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (selectedUF === '0'){
+      return;
+    }
+
+    axios
+      .get<IBGECityResponse[]>(`http://servicodados.ibge.gov.br/api/v1/localidades/estados/${selectedUF}/municipios`)
+      .then(response => {
+        const cityNames = response.data.map(city => {
+          return {
+            label: city.nome,
+            value: city.nome
+          } 
+        });
+
+        setCities(cityNames);
+      });
+  }, [selectedUF]);
+  
+  function handleSelectUF(value: string){
+    const uf = value;
+    setSelectedUF(uf);
+  }
+
+  function handleSelectCity(value: string){
+    const city = value;
+    setSelectedCity(city);
+  }
+
   function handleNavigateToPoints(){
     navigation.navigate('Points', {
-      uf,
-      city
+      selectedUF,
+      selectedCity
     });
   }
 
   return (
-    <KeyboardAvoidingView style={{ flex: 1 }} 
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    <KeyboardAvoidingView 
+      style={{ flex: 1 }} 
+      behavior='padding'
     >
       <ImageBackground 
         source={require('../../assets/home-background.png')} 
@@ -35,22 +96,29 @@ const Home = () => {
         </View>
 
         <View style={styles.footer}>
-          <TextInput 
-            style={styles.input}
-            placeholder="Digite a UF"
-            maxLength= {2}
-            autoCapitalize="characters"
-            autoCorrect={false}
-            value={uf}
-            onChangeText={setUf}
+            
+          <RNPickerSelect
+              placeholder={{
+                label: 'Selecione o estado...',
+                value: null,
+                color: 'green',
+              }}
+              items={ufs}
+              onValueChange={(value) => handleSelectUF(value)}
+              style={styles}
+              doneText="Fechar"
           />
 
-          <TextInput 
-            style={styles.input}
-            placeholder="Digite a Cidade"
-            value={city}
-            autoCorrect={false}
-            onChangeText={setCity}
+          <RNPickerSelect
+              placeholder={{
+                label: 'Selecione a cidade...',
+                value: null,
+                color: 'green',
+              }}
+              items={cities}
+              onValueChange={(value) => handleSelectCity(value)}
+              style={styles}
+              doneText="Fechar"
           />
 
           <RectButton style={styles.button} onPress={handleNavigateToPoints}>
@@ -99,9 +167,16 @@ const styles = StyleSheet.create({
 
   footer: {},
 
-  select: {},
+  inputIOS: {
+    height: 60,
+    backgroundColor: '#FFF',
+    borderRadius: 10,
+    marginBottom: 8,
+    paddingHorizontal: 24,
+    fontSize: 16,
+  },
 
-  input: {
+  inputAndroid: {
     height: 60,
     backgroundColor: '#FFF',
     borderRadius: 10,
